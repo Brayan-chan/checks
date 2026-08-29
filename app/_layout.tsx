@@ -52,13 +52,18 @@ function RootLayoutNav() {
     <ChecksProvider>
       <Toaster
         position="top-center"
-        offset={{ top: 54, left: 16, right: 16 }}
-        maxVisible={3}
+        theme="light"
+        offset={{ top: 56, left: 16, right: 16 }}
         options={{
-          fill: '#171B22',
+          fill: '#191E27',
           textColor: '#F7F8FA',
-          roundness: 20,
-          styles: { description: { color: '#A7AFBD' } },
+          roundness: 18,
+          styles: {
+            container: { borderWidth: 1, borderColor: '#252B36' },
+            description: { color: '#89909D' },
+            button: { backgroundColor: '#C9FF57' },
+            buttonText: { color: '#101409' },
+          },
         }}
       >
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
