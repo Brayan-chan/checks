@@ -1,62 +1,32 @@
-import { SymbolView } from 'expo-symbols';
-import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
+import { Tabs } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
+import { palette } from '@/components/ChecksUI';
 
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+function Icon({ symbol, active }: { symbol: string; active: boolean }) { return <View style={[styles.icon, active && styles.iconActive]}><Text style={[styles.symbol, active && styles.symbolActive]}>{symbol}</Text></View>; }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
+        headerShown: false, sceneStyle: { backgroundColor: palette.bg }, tabBarStyle: styles.bar,
+        tabBarActiveTintColor: palette.text, tabBarInactiveTintColor: palette.muted, tabBarLabelStyle: styles.label,
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Inicio',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name="house.fill"
-              tintColor={color}
-              size={28}
-            />
-          ),
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable style={{ marginRight: 15 }}>
-                {({ pressed }) => (
-                  <SymbolView
-                    name="info.circle"
-                    size={25}
-                    tintColor={Colors[colorScheme].text}
-                    style={{ opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
-          ),
+          tabBarIcon: ({ focused }) => <Icon symbol="⌂" active={focused} />,
         }}
       />
       <Tabs.Screen
         name="two"
         options={{
           title: 'Progreso',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name="chart.line.uptrend.xyaxis"
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarIcon: ({ focused }) => <Icon symbol="⌁" active={focused} />,
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({ bar: { position: 'absolute', height: 76, paddingTop: 8, paddingBottom: 8, margin: 14, borderRadius: 26, backgroundColor: '#171B22', borderTopWidth: 0, elevation: 12 }, label: { fontSize: 11, fontWeight: '700' }, icon: { width: 42, height: 30, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, iconActive: { backgroundColor: palette.lime }, symbol: { color: palette.muted, fontSize: 24, fontWeight: '900' }, symbolActive: { color: '#11150B' } });
