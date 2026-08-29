@@ -1,6 +1,7 @@
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
+import { Toaster } from 'fulltoast';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
@@ -48,11 +49,25 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <ChecksProvider><ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider></ChecksProvider>
+    <ChecksProvider>
+      <Toaster
+        position="top-center"
+        offset={{ top: 54, left: 16, right: 16 }}
+        maxVisible={3}
+        options={{
+          fill: '#171B22',
+          textColor: '#F7F8FA',
+          roundness: 20,
+          styles: { description: { color: '#A7AFBD' } },
+        }}
+      >
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          </Stack>
+        </ThemeProvider>
+      </Toaster>
+    </ChecksProvider>
   );
 }
