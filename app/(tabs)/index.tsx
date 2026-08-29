@@ -9,7 +9,7 @@ import { getBalance, useChecks } from '@/lib/checks-store';
 
 const money = (value: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value);
 const IMPORT_TOAST_ID = 'checklist-import-status';
-const IMPORT_LOADING_DELAY = 900;
+const IMPORT_MINIMUM_LOADING_TIME = 650;
 
 export default function HomeScreen() {
   const { activeGoal, checklists, addChecklist, renameChecklist, toggleTask, addTask } = useChecks();
@@ -18,9 +18,11 @@ export default function HomeScreen() {
   const [editingList, setEditingList] = useState<string | null>(null), [editedTitle, setEditedTitle] = useState('');
   const balance = activeGoal ? getBalance(activeGoal) : 0, progress = activeGoal ? balance / activeGoal.target : 0;
   async function processMarkdown(asset: DocumentPicker.DocumentPickerAsset) {
-    let promiseToastStarted = false;
     const importPromise = (async () => {
-      const content = await new File(asset.uri).text();
+      const [content] = await Promise.all([
+        new File(asset.uri).text(),
+        new Promise<void>((resolve) => setTimeout(resolve, IMPORT_MINIMUM_LOADING_TIME)),
+      ]);
       const tasks = content
         .split(/\r?\n/)
         .map((line) => line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.+)$/))
@@ -31,11 +33,10 @@ export default function HomeScreen() {
       addChecklist(name, tasks);
       return { count: tasks.length, name };
     })();
-    const loadingTimer = setTimeout(() => {
-      promiseToastStarted = true;
-      fulltoast.promise(importPromise, {
+    try {
+      await fulltoast.promise(importPromise, {
         loading: { id: IMPORT_TOAST_ID, title: 'Importando checklist', description: `Leyendo ${asset.name}…` },
-        success: ({ count, name }) => ({ id: IMPORT_TOAST_ID, title: 'Checklist importada', description: `${name} · ${count} tareas`, duration: 1800 }),
+        success: ({ count, name }) => ({ id: IMPORT_TOAST_ID, title: 'Checklist importada', description: `${name} · ${count} tareas`, duration: 2500 }),
         error: {
           id: IMPORT_TOAST_ID,
           title: 'No se pudo importar',
@@ -43,22 +44,10 @@ export default function HomeScreen() {
           duration: 6000,
           button: { title: 'Reintentar', onPress: () => { fulltoast.dismiss(IMPORT_TOAST_ID); processMarkdown(asset); } },
         },
-      }).catch(() => undefined);
-    }, IMPORT_LOADING_DELAY);
-    try {
-      await importPromise;
-      clearTimeout(loadingTimer);
+        position: 'top-center',
+      });
     } catch {
-      clearTimeout(loadingTimer);
-      if (!promiseToastStarted) {
-        fulltoast.error({
-          id: IMPORT_TOAST_ID,
-          title: 'No se pudo importar',
-          description: 'El archivo debe contener tareas con el formato - [ ] Tarea.',
-          duration: 6000,
-          button: { title: 'Reintentar', onPress: () => { fulltoast.dismiss(IMPORT_TOAST_ID); processMarkdown(asset); } },
-        });
-      }
+      // FullToast conserva visible el error y la acción de reintento.
     }
   }
 
@@ -66,12 +55,16 @@ export default function HomeScreen() {
     const result = await DocumentPicker.getDocumentAsync({ type: ['text/markdown', 'text/plain'], copyToCacheDirectory: true });
     if (!result.canceled) await processMarkdown(result.assets[0]);
   }
+  function updateTask(listId: string, taskId: string, taskTitle: string, completed: boolean) {
+    toggleTask(listId, taskId);
+    fulltoast.success({ id: `task-${taskId}`, title: completed ? 'Tarea completada' : 'Tarea reabierta', description: taskTitle, duration: 2200, position: 'top-center' });
+  }
   return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
     <View style={styles.header}><View><Text style={styles.eyebrow}>CHECKS</Text><Text style={styles.title}>Tu panorama</Text></View><View style={styles.avatar}><Text style={styles.avatarText}>BC</Text></View></View>
     {activeGoal ? <Card style={styles.hero}><View style={styles.heroTop}><View style={{ flex: 1 }}><Text style={styles.label}>OBJETIVO PRINCIPAL</Text><Text style={styles.goalTitle}>{activeGoal.title}</Text><Text style={styles.amount}>{money(balance)} <Text style={styles.target}>/ {money(activeGoal.target)}</Text></Text></View><Ring value={progress} label={`${Math.round(progress * 100)}%`} /></View><ProgressBar value={progress} /><View style={styles.metrics}><View><Text style={styles.metricLabel}>Faltan</Text><Text style={styles.metricValue}>{money(Math.max(activeGoal.target - balance, 0))}</Text></View><View><Text style={styles.metricLabel}>Movimientos</Text><Text style={styles.metricValue}>{activeGoal.movements.length}</Text></View></View></Card> : <Card><Text style={styles.emptyIcon}>◎</Text><Text style={styles.emptyTitle}>Aún no hay un objetivo</Text><Text style={styles.emptyText}>Ve a Progreso para crear tu primera meta monetaria y verla crecer aquí.</Text></Card>}
     <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Mis checklists</Text><Text style={styles.sectionSub}>{checklists.length ? `${checklists.length} listas activas` : 'Organiza los pasos de tu objetivo'}</Text></View><Pressable style={styles.addRound} onPress={() => setNewListOpen(true)}><Text style={styles.addRoundText}>＋</Text></Pressable></View>
     {!checklists.length && <Card style={styles.emptyCard}><Text style={styles.emptyIcon}>✓</Text><Text style={styles.emptyTitle}>Convierte planes en acciones</Text><Text style={styles.emptyText}>Crea una lista o importa tareas desde un archivo Markdown.</Text><Pressable style={styles.outline} onPress={importMarkdown}><Text style={styles.outlineText}>⇧  Importar Markdown</Text></Pressable></Card>}
-    {checklists.map((list) => { const done = list.tasks.filter((task) => task.done).length, ratio = list.tasks.length ? done / list.tasks.length : 0; return <Card key={list.id} style={styles.listCard}><View style={styles.listHead}><View style={{ flex: 1 }}><Pressable hitSlop={8} onPress={() => { setEditingList(list.id); setEditedTitle(list.title); }} accessibilityRole="button" accessibilityLabel={`Editar nombre de ${list.title}`}><Text style={styles.listTitle}>{list.title}</Text></Pressable><Text style={styles.listMeta}>{done} de {list.tasks.length} completadas</Text></View><Text style={styles.percent}>{Math.round(ratio * 100)}%</Text></View><ProgressBar value={ratio} color={palette.purple} /><View style={styles.tasks}>{list.tasks.map((task) => <Pressable key={task.id} style={styles.task} onPress={() => toggleTask(list.id, task.id)}><View style={[styles.check, task.done && styles.checked]}><Text style={styles.checkText}>{task.done ? '✓' : ''}</Text></View><Text style={[styles.taskText, task.done && styles.taskDone]}>{task.title}</Text></Pressable>)}</View><Pressable onPress={() => setTaskList(list.id)}><Text style={styles.addTask}>＋ Agregar tarea</Text></Pressable></Card>; })}
+    {checklists.map((list) => { const done = list.tasks.filter((task) => task.done).length, ratio = list.tasks.length ? done / list.tasks.length : 0; return <Card key={list.id} style={styles.listCard}><View style={styles.listHead}><View style={{ flex: 1 }}><Pressable hitSlop={8} onPress={() => { setEditingList(list.id); setEditedTitle(list.title); }} accessibilityRole="button" accessibilityLabel={`Editar nombre de ${list.title}`}><Text style={styles.listTitle}>{list.title}</Text></Pressable><Text style={styles.listMeta}>{done} de {list.tasks.length} completadas</Text></View><Text style={styles.percent}>{Math.round(ratio * 100)}%</Text></View><ProgressBar value={ratio} color={palette.purple} /><View style={styles.tasks}>{list.tasks.map((task) => <Pressable key={task.id} style={styles.task} onPress={() => updateTask(list.id, task.id, task.title, !task.done)}><View style={[styles.check, task.done && styles.checked]}><Text style={styles.checkText}>{task.done ? '✓' : ''}</Text></View><Text style={[styles.taskText, task.done && styles.taskDone]}>{task.title}</Text></Pressable>)}</View><Pressable onPress={() => setTaskList(list.id)}><Text style={styles.addTask}>＋ Agregar tarea</Text></Pressable></Card>; })}
     {!!checklists.length && <Pressable style={styles.importLink} onPress={importMarkdown}><Text style={styles.outlineText}>⇧  Importar otra lista Markdown</Text></Pressable>}
   </ScrollView><Sheet visible={newListOpen} title="Nueva checklist" onClose={() => setNewListOpen(false)}><Field placeholder="Nombre de la lista" value={listTitle} onChangeText={setListTitle} /><PrimaryButton label="Crear lista" disabled={!listTitle.trim()} onPress={() => { addChecklist(listTitle.trim(), []); setListTitle(''); setNewListOpen(false); }} /></Sheet><Sheet visible={!!editingList} title="Editar nombre" onClose={() => setEditingList(null)}><Field placeholder="Nombre de la lista" value={editedTitle} onChangeText={setEditedTitle} autoFocus selectTextOnFocus /><PrimaryButton label="Guardar cambios" disabled={!editedTitle.trim()} onPress={() => { if (editingList) renameChecklist(editingList, editedTitle.trim()); setEditingList(null); setEditedTitle(''); }} /></Sheet><Sheet visible={!!taskList} title="Agregar tarea" onClose={() => setTaskList(null)}><Field placeholder="¿Qué necesitas hacer?" value={taskTitle} onChangeText={setTaskTitle} /><PrimaryButton label="Agregar" disabled={!taskTitle.trim()} onPress={() => { if (taskList) addTask(taskList, taskTitle.trim()); setTaskTitle(''); setTaskList(null); }} /></Sheet></SafeAreaView>;
 }
