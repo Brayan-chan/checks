@@ -6,7 +6,7 @@ export type Goal = { id: string; title: string; target: number; initial: number;
 export type Task = { id: string; title: string; done: boolean };
 export type Checklist = { id: string; title: string; tasks: Task[] };
 type State = { activeGoal: Goal | null; archivedGoals: Goal[]; checklists: Checklist[] };
-type Store = State & { hydrated: boolean; createGoal: (title: string, target: number, initial: number) => void; addMovement: (amount: number, note: string) => void; addChecklist: (title: string, tasks: Omit<Task, 'id'>[]) => void; toggleTask: (listId: string, taskId: string) => void; addTask: (listId: string, title: string) => void };
+type Store = State & { hydrated: boolean; createGoal: (title: string, target: number, initial: number) => void; addMovement: (amount: number, note: string) => void; addChecklist: (title: string, tasks: Omit<Task, 'id'>[]) => void; renameChecklist: (listId: string, title: string) => void; toggleTask: (listId: string, taskId: string) => void; addTask: (listId: string, title: string) => void };
 
 const STORAGE_KEY = '@checks/state/v1';
 const initialState: State = { activeGoal: null, archivedGoals: [], checklists: [] };
@@ -30,6 +30,7 @@ export function ChecksProvider({ children }: PropsWithChildren) {
       return { ...current, activeGoal: updated };
     }),
     addChecklist: (title, tasks) => setState((current) => ({ ...current, checklists: [...current.checklists, { id: uid(), title, tasks: tasks.map((task) => ({ ...task, id: uid() })) }] })),
+    renameChecklist: (listId, title) => setState((current) => ({ ...current, checklists: current.checklists.map((list) => list.id === listId ? { ...list, title } : list) })),
     toggleTask: (listId, taskId) => setState((current) => ({ ...current, checklists: current.checklists.map((list) => list.id !== listId ? list : { ...list, tasks: list.tasks.map((task) => task.id === taskId ? { ...task, done: !task.done } : task) }) })),
     addTask: (listId, title) => setState((current) => ({ ...current, checklists: current.checklists.map((list) => list.id !== listId ? list : { ...list, tasks: [...list.tasks, { id: uid(), title, done: false }] }) })),
   }), [hydrated, state]);
