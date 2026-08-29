@@ -8,7 +8,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false, sceneStyle: { backgroundColor: palette.bg }, tabBarStyle: styles.bar,
+        headerShown: false, sceneStyle: { backgroundColor: palette.bg }, tabBarStyle: styles.bar, tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: palette.text, tabBarInactiveTintColor: palette.muted, tabBarLabelStyle: styles.label,
       }}>
       <Tabs.Screen
