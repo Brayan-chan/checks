@@ -1,31 +1,20 @@
-import { StyleSheet } from 'react-native';
-
-import EditScreenInfo from '@/components/EditScreenInfo';
-import { Text, View } from '@/components/Themed';
-
-export default function TabTwoScreen() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Tab Two</Text>
-      <View style={styles.separator} lightColor="#eee" darkColor="rgba(255,255,255,0.1)" />
-      <EditScreenInfo path="app/(tabs)/two.tsx" />
-    </View>
-  );
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Card, Field, LineChart, palette, PrimaryButton, ProgressBar, Sheet } from '@/components/ChecksUI';
+import { getBalance, useChecks } from '@/lib/checks-store';
+const money = (value: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value);
+const date = (iso: string) => new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+export default function ProgressScreen() {
+  const { activeGoal, archivedGoals, createGoal, addMovement } = useChecks();
+  const [goalOpen, setGoalOpen] = useState(false), [moveOpen, setMoveOpen] = useState(false), [historyOpen, setHistoryOpen] = useState(false);
+  const [title, setTitle] = useState(''), [target, setTarget] = useState(''), [initial, setInitial] = useState(''), [amount, setAmount] = useState(''), [note, setNote] = useState('');
+  const balance = activeGoal ? getBalance(activeGoal) : 0, values = activeGoal ? [activeGoal.initial, ...activeGoal.movements.map((item) => item.balance)] : [0, 0];
+  const gains = activeGoal?.movements.filter((x) => x.amount > 0).reduce((sum, x) => sum + x.amount, 0) || 0, losses = activeGoal?.movements.filter((x) => x.amount < 0).reduce((sum, x) => sum + Math.abs(x.amount), 0) || 0;
+  return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={styles.header}><View><Text style={styles.eyebrow}>CRECIMIENTO</Text><Text style={styles.title}>Progreso</Text></View>{activeGoal && <Pressable style={styles.action} onPress={() => setMoveOpen(true)}><Text style={styles.actionText}>＋ Registrar</Text></Pressable>}</View>
+    {activeGoal ? <><Card style={styles.chartCard}><View style={styles.chartHeader}><View><Text style={styles.muted}>Balance actual</Text><Text style={styles.balance}>{money(balance)}</Text></View><View style={styles.badge}><Text style={styles.badgeText}>{Math.round((balance / activeGoal.target) * 100)}%</Text></View></View><Text style={styles.goal}>{activeGoal.title} · Meta {money(activeGoal.target)}</Text><LineChart values={values} /><ProgressBar value={balance / activeGoal.target} color={palette.purple} /></Card><View style={styles.stats}><Card style={styles.stat}><Text style={styles.statIcon}>↗</Text><Text style={styles.muted}>Aportaciones</Text><Text style={[styles.statValue, { color: palette.green }]}>+{money(gains)}</Text></Card><Card style={styles.stat}><Text style={[styles.statIcon, { color: palette.red }]}>↘</Text><Text style={styles.muted}>Pérdidas</Text><Text style={[styles.statValue, { color: palette.red }]}>-{money(losses)}</Text></Card></View><View style={styles.section}><Text style={styles.sectionTitle}>Movimientos</Text><Text style={styles.muted}>{activeGoal.movements.length} registros</Text></View>{!activeGoal.movements.length ? <Card><Text style={styles.emptyTitle}>La gráfica espera tu primer registro</Text><Text style={styles.emptyText}>Agrega un avance o una pérdida para iniciar el historial.</Text></Card> : activeGoal.movements.slice().reverse().map((item) => <View key={item.id} style={styles.movement}><View style={[styles.moveIcon, { backgroundColor: item.amount >= 0 ? '#17382E' : '#3D1E28' }]}><Text style={{ color: item.amount >= 0 ? palette.green : palette.red, fontSize: 20 }}>{item.amount >= 0 ? '↑' : '↓'}</Text></View><View style={{ flex: 1 }}><Text style={styles.moveNote}>{item.note || (item.amount >= 0 ? 'Aportación' : 'Pérdida')}</Text><Text style={styles.moveDate}>{date(item.createdAt)} · Balance {money(item.balance)}</Text></View><Text style={[styles.moveAmount, { color: item.amount >= 0 ? palette.green : palette.red }]}>{item.amount >= 0 ? '+' : '-'}{money(Math.abs(item.amount))}</Text></View>)}</> : <Card style={styles.empty}><Text style={styles.emptySymbol}>⌁</Text><Text style={styles.emptyTitle}>Crea una meta que valga la pena seguir</Text><Text style={styles.emptyText}>Define una cantidad y cada movimiento dibujará tu historia de progreso.</Text><PrimaryButton label="Crear objetivo" onPress={() => setGoalOpen(true)} /></Card>}
+    {!!archivedGoals.length && <><Pressable style={styles.archiveHead} onPress={() => setHistoryOpen(!historyOpen)}><View><Text style={styles.sectionTitle}>Objetivos completados</Text><Text style={styles.muted}>{archivedGoals.length} en tu historial</Text></View><Text style={styles.chevron}>{historyOpen ? '⌃' : '⌄'}</Text></Pressable>{historyOpen && archivedGoals.map((goal) => <Card key={goal.id}><View style={styles.chartHeader}><View><Text style={styles.goalDone}>✓ COMPLETADO</Text><Text style={styles.archiveTitle}>{goal.title}</Text></View><Text style={styles.archiveAmount}>{money(getBalance(goal))}</Text></View><Text style={styles.moveDate}>{goal.movements.length} movimientos · {goal.completedAt && date(goal.completedAt)}</Text></Card>)}</>}
+  </ScrollView><Sheet visible={goalOpen} title="Nuevo objetivo" onClose={() => setGoalOpen(false)}><Field placeholder="Nombre, ej. Fondo de emergencia" value={title} onChangeText={setTitle} /><Field placeholder="Meta en MXN" keyboardType="decimal-pad" value={target} onChangeText={setTarget} /><Field placeholder="Balance inicial (opcional)" keyboardType="decimal-pad" value={initial} onChangeText={setInitial} /><PrimaryButton label="Empezar objetivo" disabled={!title.trim() || !(Number(target) > 0)} onPress={() => { createGoal(title.trim(), Number(target), Number(initial) || 0); setTitle(''); setTarget(''); setInitial(''); setGoalOpen(false); }} /></Sheet><Sheet visible={moveOpen} title="Registrar movimiento" onClose={() => setMoveOpen(false)}><Text style={styles.hint}>Usa un número negativo para registrar una pérdida.</Text><Field placeholder="Cantidad, ej. 250 o -100" keyboardType="numbers-and-punctuation" value={amount} onChangeText={setAmount} /><Field placeholder="Concepto (opcional)" value={note} onChangeText={setNote} /><PrimaryButton label="Guardar movimiento" disabled={!Number(amount)} onPress={() => { addMovement(Number(amount), note.trim()); setAmount(''); setNote(''); setMoveOpen(false); }} /></Sheet></SafeAreaView>;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: '80%',
-  },
-});
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: palette.bg }, content: { padding: 20, paddingBottom: 120, gap: 18 }, header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }, eyebrow: { color: palette.purple, fontSize: 11, fontWeight: '900', letterSpacing: 2 }, title: { color: palette.text, fontSize: 31, fontWeight: '900', marginTop: 4 }, action: { backgroundColor: palette.lime, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12 }, actionText: { color: '#11150B', fontWeight: '900' }, chartCard: { padding: 22, overflow: 'hidden' }, chartHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }, muted: { color: palette.muted, fontSize: 13 }, balance: { color: palette.text, fontSize: 36, fontWeight: '900', marginTop: 5 }, badge: { backgroundColor: '#29233D', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12 }, badgeText: { color: '#BDA9FF', fontWeight: '900' }, goal: { color: palette.muted, marginTop: 2, marginBottom: 10 }, stats: { flexDirection: 'row', gap: 12 }, stat: { flex: 1, padding: 17 }, statIcon: { color: palette.green, fontSize: 23, marginBottom: 15 }, statValue: { fontWeight: '900', fontSize: 18, marginTop: 6 }, section: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 8 }, sectionTitle: { color: palette.text, fontSize: 21, fontWeight: '900' }, empty: { paddingVertical: 34, gap: 14 }, emptySymbol: { color: palette.purple, fontSize: 50 }, emptyTitle: { color: palette.text, fontSize: 21, fontWeight: '900', lineHeight: 28 }, emptyText: { color: palette.muted, fontSize: 14, lineHeight: 21, marginBottom: 8 }, movement: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.panel, padding: 14, borderRadius: 20, borderWidth: 1, borderColor: palette.border }, moveIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, moveNote: { color: palette.text, fontWeight: '800', fontSize: 15 }, moveDate: { color: palette.muted, fontSize: 11, marginTop: 4 }, moveAmount: { fontWeight: '900', fontSize: 15 }, archiveHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }, chevron: { color: palette.text, fontSize: 24 }, goalDone: { color: palette.lime, fontWeight: '900', fontSize: 10, letterSpacing: 1 }, archiveTitle: { color: palette.text, fontWeight: '800', fontSize: 17, marginTop: 5 }, archiveAmount: { color: palette.text, fontWeight: '900', fontSize: 18 }, hint: { color: palette.muted, marginBottom: 2 } });
