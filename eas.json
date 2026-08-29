@@ -5,6 +5,7 @@
   },
   "build": {
     "preview": {
+      "bun": "1.2.22",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
