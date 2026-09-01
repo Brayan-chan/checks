@@ -3,7 +3,7 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useSt
 
 export type Movement = { id: string; amount: number; note: string; createdAt: string; balance: number };
 export type Goal = { id: string; title: string; target: number; initial: number; createdAt: string; completedAt?: string; movements: Movement[] };
-export type Task = { id: string; title: string; done: boolean };
+export type Task = { id: string; title: string; done: boolean; phase?: string; category?: string };
 export type Checklist = { id: string; title: string; tasks: Task[] };
 export type DateGoal = { id: string; title: string; createdAt: string; targetDate: string };
 type State = { activeGoal: Goal | null; archivedGoals: Goal[]; checklists: Checklist[]; dateGoals: DateGoal[] };
