@@ -20,6 +20,38 @@ function Chevron({ expanded }: { expanded: boolean }) {
   return <View style={{ width: 9, height: 9, borderRightWidth: 2, borderBottomWidth: 2, borderColor: palette.muted, transform: [{ rotate: expanded ? '225deg' : '45deg' }], marginTop: expanded ? 5 : -4 }} />;
 }
 
+type TaskHierarchyGroup = { name: string; categories: { name: string; tasks: Task[] }[] };
+
+function groupTasksByMarkdownHierarchy(tasks: Task[]): TaskHierarchyGroup[] {
+  const phases = new Map<string, Map<string, Task[]>>();
+  tasks.forEach((task) => {
+    const phase = task.phase?.trim() || 'General';
+    const category = task.category?.trim() || 'Pasos';
+    if (!phases.has(phase)) phases.set(phase, new Map());
+    const categories = phases.get(phase)!;
+    if (!categories.has(category)) categories.set(category, []);
+    categories.get(category)!.push(task);
+  });
+  return Array.from(phases, ([name, categories]) => ({
+    name,
+    categories: Array.from(categories, ([categoryName, categoryTasks]) => ({ name: categoryName, tasks: categoryTasks })),
+  }));
+}
+
+function TaskHierarchy({ tasks, onToggleTask }: { tasks: Task[]; onToggleTask: (task: Task) => void }) {
+  return <View style={hierarchyStyles.container}>{groupTasksByMarkdownHierarchy(tasks).map((phase, phaseIndex) => {
+    const taskCount = phase.categories.reduce((total, category) => total + category.tasks.length, 0);
+    const showCategoryNames = phase.categories.length > 1 || phase.categories[0]?.name !== 'Pasos';
+    return <View key={phase.name} style={hierarchyStyles.phase}>
+      <View style={hierarchyStyles.phaseHeader}><View style={hierarchyStyles.phaseNumber}><Text style={hierarchyStyles.phaseNumberText}>{phaseIndex + 1}</Text></View><View style={{ flex: 1 }}><Text style={hierarchyStyles.phaseTitle}>{phase.name}</Text><Text style={hierarchyStyles.phaseMeta}>{taskCount} {taskCount === 1 ? 'tarea' : 'tareas'}</Text></View></View>
+      {phase.categories.map((category) => <View key={`${phase.name}-${category.name}`} style={hierarchyStyles.category}>
+        {showCategoryNames && <Text style={hierarchyStyles.categoryTitle}>{category.name}</Text>}
+        <View style={styles.tasks}>{category.tasks.map((task) => <Pressable key={task.id} style={styles.task} onPress={() => onToggleTask(task)}><View style={[styles.check, task.done && styles.checked]}><Text style={styles.checkText}>{task.done ? '✓' : ''}</Text></View><Text style={[styles.taskText, task.done && styles.taskDone]}>{task.title}</Text></Pressable>)}</View>
+      </View>)}
+    </View>;
+  })}</View>;
+}
+
 function ChecklistProgressCard({ list, onToggleTask, onAddTask, onRename }: { list: Checklist; onToggleTask: (task: Task) => void; onAddTask: () => void; onRename: () => void }) {
   const pending = list.tasks.filter((task) => !task.done), completed = list.tasks.filter((task) => task.done);
   const isComplete = list.tasks.length > 0 && pending.length === 0;
@@ -27,11 +59,10 @@ function ChecklistProgressCard({ list, onToggleTask, onAddTask, onRename }: { li
   const [pendingLimit, setPendingLimit] = useState(8), [completedLimit, setCompletedLimit] = useState(8);
   useEffect(() => { if (isComplete) { setExpanded(false); setCompletedOpen(false); } }, [isComplete]);
   const ratio = list.tasks.length ? completed.length / list.tasks.length : 0;
-  const TaskRow = ({ task }: { task: Task }) => <Pressable style={styles.task} onPress={() => onToggleTask(task)}><View style={[styles.check, task.done && styles.checked]}><Text style={styles.checkText}>{task.done ? '✓' : ''}</Text></View><Text style={[styles.taskText, task.done && styles.taskDone]}>{task.title}</Text></Pressable>;
   return <Card style={[styles.listCard, isComplete && checklistStyles.completeCard]}>
     <View style={styles.listHead}><View style={{ flex: 1 }}><Pressable hitSlop={8} onPress={onRename} accessibilityRole="button" accessibilityLabel={`Editar nombre de ${list.title}`}><Text style={styles.listTitle}>{list.title}</Text></Pressable><Text style={styles.listMeta}>{completed.length} de {list.tasks.length} completadas</Text></View>{isComplete && <View style={checklistStyles.badge}><Text style={checklistStyles.badgeText}>✓ COMPLETADA</Text></View>}<Pressable style={checklistStyles.collapseButton} onPress={() => setExpanded((value) => !value)} accessibilityRole="button" accessibilityLabel={expanded ? 'Contraer checklist' : 'Expandir checklist'}><Chevron expanded={expanded} /></Pressable></View>
     <View style={checklistStyles.progressRow}><View style={{ flex: 1 }}><ProgressBar value={ratio} color={isComplete ? palette.green : palette.purple} /></View><Text style={[styles.percent, isComplete && { color: palette.green }]}>{Math.round(ratio * 100)}%</Text></View>
-    {expanded && <><View style={checklistStyles.groupHeader}><Text style={checklistStyles.groupTitle}>PENDIENTES</Text><Text style={checklistStyles.groupCount}>{pending.length}</Text></View><View style={styles.tasks}>{pending.slice(0, pendingLimit).map((task) => <TaskRow key={task.id} task={task} />)}</View>{pending.length > pendingLimit && <Pressable style={checklistStyles.moreButton} onPress={() => setPendingLimit((value) => value + 20)}><Text style={checklistStyles.moreText}>Mostrar 20 más · quedan {pending.length - pendingLimit}</Text></Pressable>}<Pressable onPress={onAddTask}><Text style={styles.addTask}>＋ Agregar tarea</Text></Pressable>{completed.length > 0 && <View style={checklistStyles.completedSection}><Pressable style={checklistStyles.completedHeader} onPress={() => setCompletedOpen((value) => !value)}><View style={checklistStyles.completedLabel}><Text style={checklistStyles.completedCheck}>✓</Text><Text style={checklistStyles.completedTitle}>Completadas</Text><Text style={checklistStyles.groupCount}>{completed.length}</Text></View><View style={checklistStyles.collapseButton}><Chevron expanded={completedOpen} /></View></Pressable>{completedOpen && <><View style={styles.tasks}>{completed.slice(0, completedLimit).map((task) => <TaskRow key={task.id} task={task} />)}</View>{completed.length > completedLimit && <Pressable style={checklistStyles.moreButton} onPress={() => setCompletedLimit((value) => value + 20)}><Text style={checklistStyles.moreText}>Mostrar 20 completadas más</Text></Pressable>}</>}</View>}</>}
+    {expanded && <><View style={checklistStyles.groupHeader}><Text style={checklistStyles.groupTitle}>PENDIENTES POR FASE</Text><Text style={checklistStyles.groupCount}>{pending.length}</Text></View><TaskHierarchy tasks={pending.slice(0, pendingLimit)} onToggleTask={onToggleTask} />{pending.length > pendingLimit && <Pressable style={checklistStyles.moreButton} onPress={() => setPendingLimit((value) => value + 20)}><Text style={checklistStyles.moreText}>Mostrar 20 más · quedan {pending.length - pendingLimit}</Text></Pressable>}<Pressable onPress={onAddTask}><Text style={styles.addTask}>＋ Agregar tarea</Text></Pressable>{completed.length > 0 && <View style={checklistStyles.completedSection}><Pressable style={checklistStyles.completedHeader} onPress={() => setCompletedOpen((value) => !value)}><View style={checklistStyles.completedLabel}><Text style={checklistStyles.completedCheck}>✓</Text><Text style={checklistStyles.completedTitle}>Completadas</Text><Text style={checklistStyles.groupCount}>{completed.length}</Text></View><View style={checklistStyles.collapseButton}><Chevron expanded={completedOpen} /></View></Pressable>{completedOpen && <><TaskHierarchy tasks={completed.slice(0, completedLimit)} onToggleTask={onToggleTask} />{completed.length > completedLimit && <Pressable style={checklistStyles.moreButton} onPress={() => setCompletedLimit((value) => value + 20)}><Text style={checklistStyles.moreText}>Mostrar 20 completadas más</Text></Pressable>}</>}</View>}</>}
   </Card>;
 }
 
@@ -50,13 +81,24 @@ export default function HomeScreen() {
         new File(asset.uri).text(),
         new Promise<void>((resolve) => setTimeout(resolve, IMPORT_MINIMUM_LOADING_TIME)),
       ]);
-      const tasks = content
-        .split(/\r?\n/)
-        .map((line) => line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.+)$/))
-        .filter(Boolean)
-        .map((match) => ({ done: match![1].toLowerCase() === 'x', title: match![2].trim() }));
+      let phase: string | undefined;
+      let category: string | undefined;
+      let documentTitle: string | undefined;
+      const tasks: Omit<Task, 'id'>[] = [];
+      content.split(/\r?\n/).forEach((line) => {
+        const heading = line.match(/^\s*(#{1,3})\s+(.+?)\s*#*\s*$/);
+        if (heading) {
+          const title = heading[2].replace(/[*_`]/g, '').trim();
+          if (heading[1].length === 1 && !documentTitle) documentTitle = title;
+          if (heading[1].length === 2) { phase = title; category = undefined; }
+          if (heading[1].length === 3) category = title;
+          return;
+        }
+        const item = line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.+)$/);
+        if (item) tasks.push({ done: item[1].toLowerCase() === 'x', title: item[2].trim(), phase, category });
+      });
       if (!tasks.length) throw new Error('No checklist items');
-      const name = asset.name.replace(/\.md$/i, '');
+      const name = documentTitle || asset.name.replace(/\.md$/i, '');
       addChecklist(name, tasks);
       return { count: tasks.length, name };
     })();
@@ -100,3 +142,4 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: palette.bg }, content: { padding: 20, paddingBottom: 120, gap: 18 }, header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }, eyebrow: { color: palette.lime, fontSize: 11, fontWeight: '900', letterSpacing: 2 }, title: { color: palette.text, fontSize: 30, fontWeight: '900', marginTop: 4 }, avatar: { width: 46, height: 46, borderRadius: 18, backgroundColor: palette.purple, alignItems: 'center', justifyContent: 'center' }, avatarText: { color: 'white', fontWeight: '900' }, hero: { padding: 22 }, heroTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 }, label: { color: palette.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 }, goalTitle: { color: palette.text, fontSize: 20, fontWeight: '800', marginTop: 7 }, amount: { color: palette.text, fontSize: 26, fontWeight: '900', marginTop: 16 }, target: { color: palette.muted, fontSize: 15, fontWeight: '600' }, metrics: { flexDirection: 'row', gap: 54, marginTop: 18 }, metricLabel: { color: palette.muted, fontSize: 12 }, metricValue: { color: palette.text, fontWeight: '800', fontSize: 15, marginTop: 3 }, sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }, sectionTitle: { color: palette.text, fontSize: 22, fontWeight: '900' }, sectionSub: { color: palette.muted, fontSize: 13, marginTop: 4 }, addRound: { width: 42, height: 42, backgroundColor: palette.panel2, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, addRoundText: { color: palette.text, fontSize: 23 }, emptyCard: { alignItems: 'center', paddingVertical: 28 }, emptyIcon: { color: palette.lime, fontSize: 35, fontWeight: '300' }, emptyTitle: { color: palette.text, fontSize: 19, fontWeight: '800', marginTop: 10 }, emptyText: { color: palette.muted, lineHeight: 20, textAlign: 'center', marginTop: 8, maxWidth: 290 }, outline: { borderWidth: 1, borderColor: '#3A424F', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 20, marginTop: 20 }, outlineText: { color: palette.text, fontWeight: '700' }, listCard: { gap: 15 }, listHead: { flexDirection: 'row', alignItems: 'center' }, listTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 9 }, listTitle: { color: palette.text, fontSize: 19, fontWeight: '800', flexShrink: 1 }, editButton: { color: palette.muted, fontSize: 20, paddingHorizontal: 3 }, listMeta: { color: palette.muted, marginTop: 4 }, percent: { color: palette.purple, fontWeight: '900', fontSize: 18 }, tasks: { gap: 5, marginTop: 3 }, task: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 }, check: { width: 25, height: 25, borderRadius: 9, borderWidth: 1.5, borderColor: '#505866', alignItems: 'center', justifyContent: 'center' }, checked: { backgroundColor: palette.purple, borderColor: palette.purple }, checkText: { color: 'white', fontWeight: '900' }, taskText: { color: palette.text, fontSize: 15, flex: 1 }, taskDone: { color: palette.muted, textDecorationLine: 'line-through' }, addTask: { color: palette.lime, fontWeight: '800', paddingTop: 5 }, importLink: { alignItems: 'center', padding: 12 } });
 const deadlineStyles = StyleSheet.create({ card: { padding: 14, backgroundColor: '#100B12', borderColor: '#33202B' }, top: { flexDirection: 'row', gap: 15, alignItems: 'stretch' }, counter: { width: 104, minHeight: 142, borderRadius: 22, backgroundColor: '#25131D', alignItems: 'center', justifyContent: 'center', padding: 10 }, flame: { color: '#FF477E', fontSize: 27, textShadowColor: '#FF477E', textShadowRadius: 12 }, days: { color: palette.text, fontSize: 32, lineHeight: 38, fontWeight: '900', marginTop: 5 }, daysLabel: { color: '#B69FAA', fontSize: 11, textAlign: 'center' }, details: { flex: 1, justifyContent: 'center', gap: 9 }, kicker: { color: '#FF6B96', fontSize: 10, fontWeight: '900', letterSpacing: 1.4 }, title: { color: palette.text, fontSize: 18, lineHeight: 23, fontWeight: '900' }, date: { color: '#B69FAA', fontSize: 12, textTransform: 'capitalize' }, progressMeta: { flexDirection: 'row', justifyContent: 'space-between' }, progressText: { color: palette.muted, fontSize: 10 }, progressValue: { color: '#FF6B96', fontSize: 10, fontWeight: '900' }, dateButton: { minHeight: 64, borderRadius: 16, paddingHorizontal: 16, backgroundColor: palette.panel2, borderWidth: 1, borderColor: palette.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, dateButtonLabel: { color: palette.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 }, dateButtonValue: { color: palette.text, fontSize: 15, fontWeight: '800', marginTop: 4, textTransform: 'capitalize' }, calendar: { color: '#FF6B96', fontSize: 24 } });
 const checklistStyles = StyleSheet.create({ completeCard: { backgroundColor: '#101916', borderColor: '#203B32' }, badge: { backgroundColor: '#17382E', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, marginLeft: 8 }, badgeText: { color: palette.green, fontSize: 8, fontWeight: '900', letterSpacing: .6 }, collapseButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }, chevron: { color: palette.muted, fontSize: 21, fontWeight: '800' }, progressRow: { flexDirection: 'row', alignItems: 'center', gap: 12 }, groupHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }, groupTitle: { color: palette.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, groupCount: { color: palette.muted, backgroundColor: palette.panel2, borderRadius: 9, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, fontSize: 10, fontWeight: '800' }, moreButton: { minHeight: 42, borderRadius: 13, backgroundColor: palette.panel2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 }, moreText: { color: palette.purple, fontSize: 12, fontWeight: '800' }, completedSection: { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 3, paddingTop: 10, gap: 8 }, completedHeader: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, completedLabel: { flexDirection: 'row', alignItems: 'center', gap: 8 }, completedCheck: { color: palette.green, fontWeight: '900' }, completedTitle: { color: palette.muted, fontSize: 13, fontWeight: '800' } });
+const hierarchyStyles = StyleSheet.create({ container: { gap: 12 }, phase: { borderRadius: 16, backgroundColor: '#11161E', borderWidth: 1, borderColor: '#252C37', padding: 12, gap: 10 }, phaseHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 }, phaseNumber: { width: 28, height: 28, borderRadius: 10, backgroundColor: '#2A2140', alignItems: 'center', justifyContent: 'center' }, phaseNumberText: { color: palette.purple, fontSize: 11, fontWeight: '900' }, phaseTitle: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '800' }, phaseMeta: { color: palette.muted, fontSize: 10, marginTop: 2 }, category: { gap: 3 }, categoryTitle: { color: palette.lime, fontSize: 10, fontWeight: '900', letterSpacing: .8, textTransform: 'uppercase', marginTop: 3, marginBottom: 2 } });
