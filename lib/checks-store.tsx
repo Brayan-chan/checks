@@ -7,7 +7,7 @@ export type Task = { id: string; title: string; done: boolean; phase?: string; c
 export type Checklist = { id: string; title: string; tasks: Task[] };
 export type DateGoal = { id: string; title: string; createdAt: string; targetDate: string };
 type State = { activeGoal: Goal | null; archivedGoals: Goal[]; checklists: Checklist[]; dateGoals: DateGoal[] };
-type Store = State & { hydrated: boolean; createGoal: (title: string, target: number, initial: number) => void; addMovement: (amount: number, note: string) => void; addDateGoal: (title: string, targetDate: Date) => void; addChecklist: (title: string, tasks: Omit<Task, 'id'>[]) => void; renameChecklist: (listId: string, title: string) => void; toggleTask: (listId: string, taskId: string) => void; addTask: (listId: string, title: string) => void };
+type Store = State & { hydrated: boolean; createGoal: (title: string, target: number, initial: number) => void; addMovement: (amount: number, note: string) => void; addDateGoal: (title: string, targetDate: Date) => void; addChecklist: (title: string, tasks: Omit<Task, 'id'>[]) => void; renameChecklist: (listId: string, title: string) => void; toggleTask: (listId: string, taskId: string) => void; addTask: (listId: string, title: string) => void; deleteTask: (listId: string, taskId: string) => void; deleteChecklist: (listId: string) => void };
 
 const STORAGE_KEY = '@checks/state/v1';
 const initialState: State = { activeGoal: null, archivedGoals: [], checklists: [], dateGoals: [] };
@@ -35,6 +35,8 @@ export function ChecksProvider({ children }: PropsWithChildren) {
     renameChecklist: (listId, title) => setState((current) => ({ ...current, checklists: current.checklists.map((list) => list.id === listId ? { ...list, title } : list) })),
     toggleTask: (listId, taskId) => setState((current) => ({ ...current, checklists: current.checklists.map((list) => list.id !== listId ? list : { ...list, tasks: list.tasks.map((task) => task.id === taskId ? { ...task, done: !task.done } : task) }) })),
     addTask: (listId, title) => setState((current) => ({ ...current, checklists: current.checklists.map((list) => list.id !== listId ? list : { ...list, tasks: [...list.tasks, { id: uid(), title, done: false }] }) })),
+    deleteTask: (listId, taskId) => setState((current) => ({ ...current, checklists: current.checklists.map((list) => list.id !== listId ? list : { ...list, tasks: list.tasks.filter((task) => task.id !== taskId) }) })),
+    deleteChecklist: (listId) => setState((current) => ({ ...current, checklists: current.checklists.filter((list) => list.id !== listId) })),
   }), [hydrated, state]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
